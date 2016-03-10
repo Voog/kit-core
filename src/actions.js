@@ -1,7 +1,7 @@
 'use strict';
 
 import config from './config';
-import sites from './sites';
+import projects from './projects';
 import Voog from 'voog';
 import fileUtils from './file_utils';
 import fs from 'fs';
@@ -14,8 +14,8 @@ const LAYOUTFOLDERS = ['components', 'layouts'];
 const ASSETFOLDERS = ['assets', 'images', 'javascripts', 'stylesheets'];
 
 const clientFor = (name) => {
-  let host = sites.hostFor(name);
-  let token = sites.tokenFor(name);
+  let host = projects.hostFor(name);
+  let token = projects.tokenFor(name);
   if (host && token) {
     return new Voog(host, token);
   }
@@ -53,7 +53,7 @@ const getManifest = (name) => {
 };
 
 const writeManifest = (name, manifest) => {
-  let manifestPath = `${sites.dirFor(name)}/manifest2.json`;
+  let manifestPath = `${projects.dirFor(name)}/manifest2.json`;
   fileUtils.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 };
 
@@ -62,7 +62,7 @@ const generateRemoteManifest = (name) => {
 };
 
 const readManifest = (name) => {
-  let manifestFilePath = path.join(path.normalize(sites.dirFor(name)), 'manifest2.json');
+  let manifestFilePath = path.join(path.normalize(projects.dirFor(name)), 'manifest2.json');
   if (!fs.existsSync(manifestFilePath)) { return; }
 
   try {
@@ -114,7 +114,7 @@ const getLayoutAssets = (projectName, opts={}) => {
 
 const pullAllFiles = (projectName) => {
   return new Promise((resolve, reject) => {
-    let projectDir = sites.dirFor(projectName);
+    let projectDir = projects.dirFor(projectName);
 
     Promise.all([
       getLayouts(projectName),
@@ -137,7 +137,7 @@ const pullAllFiles = (projectName) => {
 
 const pushAllFiles = (projectName) => {
   return new Promise((resolve, reject) => {
-    let projectDir = sites.dirFor(projectName);
+    let projectDir = projects.dirFor(projectName);
 
     Promise.all([
       getLayouts(projectName),
@@ -296,7 +296,7 @@ const uploadFile = (projectName, file, filePath) => {
 };
 
 const pullFile = (projectName, filePath) => {
-  let projectDir = sites.dirFor(projectName);
+  let projectDir = projects.dirFor(projectName);
 
   let normalizedPath = normalizePath(filePath, projectDir);
 
@@ -313,7 +313,7 @@ const pullFile = (projectName, filePath) => {
 }
 
 const pushFile = (projectName, filePath) => {
-  let projectDir = sites.dirFor(projectName);
+  let projectDir = projects.dirFor(projectName);
   let normalizedPath = normalizePath(filePath, projectDir);
 
   return new Promise((resolve, reject) => {
