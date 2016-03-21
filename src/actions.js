@@ -87,6 +87,8 @@ const pushAllFiles = (projectName) => {
   return new Promise((resolve, reject) => {
     let projectDir = projects.dirFor(projectName);
 
+    // assets.filter(a => ['js', 'css'].indexOf(a.filename.split('.').reverse()[0]) >= 0)
+
     Promise.all([
       getLayouts(projectName),
       getLayoutAssets(projectName)

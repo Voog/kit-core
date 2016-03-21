@@ -4,6 +4,7 @@ import babel from 'rollup-plugin-babel';
 export default {
   entry: 'src/core.js',
   format: 'cjs',
+  sourceMap: false,
   plugins: [
     json(),
     babel({
