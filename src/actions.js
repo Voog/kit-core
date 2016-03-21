@@ -21,58 +21,7 @@ const clientFor = (name) => {
   }
 };
 
-const getLayoutInfo = (layout) => {
-  let name = layout.title.replace(/[^\w\.\-]/g, '_').toLowerCase();
-  return {
-    title: layout.title,
-    layout_name: name,
-    content_type: layout.content_type,
-    component: layout.component,
-    file: `${layout.component ? 'components' : 'layouts'}/${name}`
-  }
-};
-
-const getAssetInfo = (asset) => {
-  return {
-    kind: asset.asset_type,
-    filename: asset.filename,
-    file: `${asset.asset_type}s/${asset.filename}`,
-    content_type: asset.content_type
-  };
-};
-
-const getManifest = (name) => {
-  return new Promise((resolve, reject) => {
-    Promise.all([getLayouts(name), getLayoutAssets(name)]).then(files => {
-      resolve({
-        layouts: files[0].map(getLayoutInfo),
-        assets: files[1].map(getAssetInfo)
-      });
-    }, reject);
-  });
-};
-
-const writeManifest = (name, manifest) => {
-  let manifestPath = `${projects.dirFor(name)}/manifest2.json`;
-  fileUtils.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
-};
-
-const generateRemoteManifest = (name) => {
-  getManifest(name).then(_.curry(writeManifest)(name));
-};
-
-const readManifest = (name) => {
-  let manifestFilePath = path.join(path.normalize(projects.dirFor(name)), 'manifest2.json');
-  if (!fs.existsSync(manifestFilePath)) { return; }
-
-  try {
-    return JSON.parse(fs.readFileSync(manifestFilePath));
-  } catch (e) {
-    return;
-  }
-};
-
-const getLayoutContents = (id, projectName) => {
+const getLayoutContents = (projectName, id) => {
   return new Promise((resolve, reject) => {
     clientFor(projectName).layout(id, {}, (err, data) => {
       if (err) { reject(err) }
@@ -81,7 +30,7 @@ const getLayoutContents = (id, projectName) => {
   });
 };
 
-const getLayoutAssetContents = (id, projectName) => {
+const getLayoutAssetContents = (projectName, id) => {
   return new Promise((resolve, reject) => {
     clientFor(projectName).layoutAsset(id, {}, (err, data) => {
       if (err) { reject(err) }
@@ -120,7 +69,6 @@ const pullAllFiles = (projectName) => {
       getLayouts(projectName),
       getLayoutAssets(projectName)
     ]).then(([layouts, assets]) => {
-
       Promise.all([
         layouts.map(l => {
           let filePath = path.join(projectDir, `${l.component ? 'components' : 'layouts'}/${normalizeTitle(l.title)}.tpl`);
@@ -147,7 +95,7 @@ const pushAllFiles = (projectName) => {
         layouts.map(l => {
           let filePath = path.join(projectDir, `${l.component ? 'components' : 'layouts'}/${normalizeTitle(l.title)}.tpl`);
           return pushFile(projectName, filePath);
-        }).concat(assets.filter(a => ['js', 'css'].indexOf(a.filename.split('.').reverse()[0]) >= 0).map(a => {
+        }).concat(assets.map(a => {
           let filePath = path.join(projectDir, `${_.includes(['stylesheet', 'image', 'javascript'], a.asset_type) ? a.asset_type : 'asset'}s/${a.filename}`);
           return pushFile(projectName, filePath);
         }))
@@ -236,19 +184,19 @@ const writeFile = (projectName, file, destPath) => {
   return new Promise((resolve, reject) => {
     if (file) {
       if (_.includes(Object.keys(file), 'layout_name')) {
-        getLayoutContents(file.id, projectName).then(contents => {
+        getLayoutContents(projectName, file.id).then(contents => {
           try { fs.mkdirSync(path.dirname(destPath)) } catch(e) { if (e.code != 'EEXIST') { throw e } };
           fs.writeFile(destPath, contents, (err) => {
             if (err) { reject(false) }
-            resolve(true);
+            resolve(file);
           });
         })
       } else if (file.editable) {
-        getLayoutAssetContents(file.id, projectName).then(contents => {
+        getLayoutAssetContents(projectName, file.id).then(contents => {
           try { fs.mkdirSync(path.dirname(destPath)) } catch(e) { if (e.code != 'EEXIST') { throw e } };
           fs.writeFile(destPath, contents, (err) => {
             if (err) { reject(false) }
-            resolve(true);
+            resolve(file);
           });
         })
       } else {
@@ -258,6 +206,7 @@ const writeFile = (projectName, file, destPath) => {
         if (url && stream) {
           let req = request.get(url).on('error', (err) => reject(false));
           req.pipe(stream);
+          resolve(file);
         } else {
           reject(false);
         }
@@ -277,20 +226,20 @@ const uploadFile = (projectName, file, filePath) => {
         client.updateLayout(file.id, {
           body: contents
         }, (err, data) => {
-           if (err) { reject(false); } else { resolve(true); }
+          (err ? reject : resolve)(file)
         });
       } else if (file.editable) {
         let contents = fs.readFileSync(filePath, 'utf8');
         client.updateLayoutAsset(file.id, {
           data: contents
         }, (err, data) => {
-           if (err) { reject(false); } else { resolve(true); }
+          (err ? reject : resolve)(file)
         });
       } else {
-        reject(false);
+        resolve(file);
       }
     } else {
-       reject();
+      reject(file);
     }
   });
 };
@@ -319,8 +268,7 @@ const pushFile = (projectName, filePath) => {
   return new Promise((resolve, reject) => {
     findFile(normalizedPath, projectName).then(file => {
       if (!file || typeof file === 'undefined') {
-        reject();
-        return;
+        return reject(file);
       }
       resolve(uploadFile(projectName, file, filePath));
     })
@@ -346,9 +294,6 @@ export default {
   findLayout,
   findLayoutAsset,
   pushFile,
-  pullFile,
-  getManifest,
-  readManifest,
-  writeManifest: generateRemoteManifest
+  pullFile
 };
 

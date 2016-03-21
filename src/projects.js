@@ -50,6 +50,11 @@ const getFileInfo = (filePath) => {
   };
 };
 
+const totalFilesFor = (projectName) => {
+  let files = filesFor(projectName);
+  return Object.keys(files).reduce((total, folder) => total + files[folder].length, 0);
+};
+
 // filesFor :: string -> object?
 const filesFor = (name) => {
   let folders = [
@@ -115,6 +120,7 @@ export default {
   byName,
   add,
   remove,
+  totalFilesFor,
   filesFor,
   dirFor,
   hostFor,
