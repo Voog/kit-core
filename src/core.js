@@ -1,8 +1,6 @@
-"use strict";
+'use strict';
 
-var fs = require("fs");
-var file_utils = require("./file_utils");
-var config = require("./config");
+import {version} from '../package.json';
 
 import fs from 'fs';
 

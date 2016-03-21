@@ -1,181 +1,104 @@
 'use strict';
 
-var Promise = require('bluebird').Promise;
-var fs = require('fs');
+import fs from 'fs';
+import path from 'path';
 
-var HOMEDIR = process.env.HOME;
+const CONFIG_FILENAME = '.voog';
 
-function globalConfigPresent() {
-  return new Promise(function(resolve) {
-    fs.exists(HOMEDIR + '/.voog', function(exists) {
-      resolve(exists);
-    });
-  });
-}
+const HOMEDIR = process.env.HOME;
+const LOCALDIR = process.cwd();
 
-function localConfigPresent() {
-  return new Promise(function(resolve) {
-    fs.exists('./.voog', function(exists) {
-      resolve(exists);
-    });
-  });
-}
+const LOCAL_CONFIG = path.join(LOCALDIR, CONFIG_FILENAME);
+const GLOBAL_CONFIG = path.join(HOMEDIR, CONFIG_FILENAME);
 
-function getProjectByName(name) {
-  return new Promise(function(resolve, reject) {
-    if (!name || name.length === 0) { reject(); }
+const siteByName = (name, options) => {
+  return sites().filter(function(p) {
+    return p.name === name;
+  })[0];
+};
 
-    readConfig().then(function(config) {
-      var projects = config.projects;
-      resolve(projects.filter(function(p) {
-        return p.name === name;
-      })[0]);
-    });
-  });
-}
+const sites = (options) => {
+  return read('sites', options) || read('projects', options) || [];
+};
 
-function writeConfig(key, value, options) {
-  return new Promise(function(resolve, reject) {
-    if (!options) {
-      var path = HOMEDIR + '/.voog';
-    } else if (options.hasOwnProperty('global') && options.global === true) {
-      var path = HOMEDIR + '/.voog';
+const write = (key, value, options) => {
+  let path;
+  if (!options || (_.has(options, 'global') && options.global === true)) {
+    path = GLOBAL_CONFIG;
+  } else {
+    path = LOCAL_CONFIG;
+  }
+  let config = read(null, options) || {};
+  config[key] = value;
+
+  let fileContents = JSON.stringify(config, null, 2);
+
+  fs.writeFileSync(path, fileContents);
+  return true;
+};
+
+const read = (key, options) => {
+  let path;
+  if (!options || (_.has(options, 'global') && options.global === true)) {
+    path = GLOBAL_CONFIG;
+  } else {
+    path = LOCAL_CONFIG;
+  }
+
+  try {
+    let data = fs.readFileSync(path, 'utf8');
+    let parsedData = JSON.parse(data);
+    if (typeof key === 'string') {
+      return parsedData[key];
     } else {
-      var path = './.voog';
+      return parsedData;
     }
+  } catch (e) {
+    return;
+  }
+};
 
-    var config = readConfig(null, options).then(function(config) {
-      config[key] = value;
-      var fileContents = JSON.stringify(config);
+const deleteKey = (key, options) => {
+  if (!options) {
+    let path = GLOBAL_CONFIG;
+  } else if (options.hasOwnProperty('global') && options.global === true) {
+    let path = GLOBAL_CONFIG;
+  } else {
+    let path = LOCAL_CONFIG;
+  }
 
-      fs.writeFile(path, fileContents, function(err) {
-        if (err) { reject(err); }
+  let config = read(null, options);
+  let deleted = delete config[key];
 
-        resolve(config);
-      });
-    });
-  });
-}
+  if (deleted) {
+    let fileContents = JSON.stringify(config);
+    fs.writeFileSync(path, fileContents);
+  }
 
-function readConfig(key, options) {
-  return new Promise(function(resolve, reject) {
-    if (!options) {
-      var path = HOMEDIR + '/.voog';
-    } else if (options.hasOwnProperty('global') && options.global === true) {
-      var path = HOMEDIR + '/.voog';
-    } else {
-      var path = './.voog';
-    }
+  return deleted;
+};
 
-    fs.readFile(path, 'utf8', function(err, data) {
-      if (err) { reject(err); }
+const isPresent = (global) => {
+  if (global) {
+    let path = GLOBAL_CONFIG;
+  } else {
+    let path = LOCAL_CONFIG;
+  }
+  return fs.existsSync(path);
+};
 
-      try {
-        var parsedData = JSON.parse(data);
-        if (typeof key === 'string') {
-          resolve(parsedData[key]);
-        } else {
-          resolve(parsedData);
-        }
-      } catch (e) {
-        reject(e);
-      }
-    });
-  });
-}
+const hasKey = (key, options) => {
+  let config = read(null, options);
+  return (typeof config !== 'undefined') && config.hasOwnProperty(key);
+};
 
-function deleteKey(key, options) {
-  return new Promise(function(resolve, reject) {
-    if (!options) {
-      var path = HOMEDIR + '/.voog';
-    } else if (options.hasOwnProperty('global') && options.global === true) {
-      var path = HOMEDIR + '/.voog';
-    } else {
-      var path = './.voog';
-    }
-
-    var config = readConfig(null, options).then(function(config) {
-      delete config[key];
-      var fileContents = JSON.stringify(config);
-
-      fs.writeFile(path, fileContents, function(err) {
-        if (err) { reject(err); }
-
-        resolve(config);
-      });
-    });
-
-  });
-}
-
-function createConfig(options) {
-  return new Promise(function(resolve, reject) {
-    if (options && options.hasOwnProperty('global') && options.global) {
-      var path = HOMEDIR + '/.voog';
-      var global = true;
-    } else {
-      var path = './.voog';
-      var global = false;
-    }
-
-    if (global) {
-      isPresent().then(function(globalPresent) {
-        if (!globalPresent) {
-          fs.writeFile(path, '', function(err) {
-            if (err) { reject(err); }
-            resolve('OK!');
-          });
-        } else {
-          reject('Global configuration file already present!');
-        }
-      });
-    } else {
-      isPresent(false).then(function(localPresent) {
-        if (!localPresent) {
-          fs.writeFile(path, '', function(err) {
-            if (err) { reject(err); }
-            resolve('OK!');
-          });
-        } else {
-          reject('Local configuration file already present!');
-        }
-      });
-    }
-  });
-}
-
-function isPresent(global) {
-  return new Promise(function(resolve, reject) {
-    if (global) {
-      var path = HOMDEDIR + '/.voog';
-    } else {
-      var path = './.voog';
-    }
-    fs.exists(path, function(exists) {
-      resolve(exists);
-    });
-  });
-}
-
-function hasKey(key, options) {
-  return new Promise(function(resolve, reject) {
-    readConfig(options.global).then(function(config) {
-      resolve(config && config.hasOwnProperty(key));
-    })
-  });
-}
-
-module.exports = {
-  getProjectByName: getProjectByName,
-
-  write: writeConfig,
-
-  read: readConfig,
-
+export default {
+  siteByName,
+  write,
+  read,
   delete: deleteKey,
-
-  isPresent: isPresent,
-
-  hasKey: hasKey
+  isPresent,
+  hasKey,
+  sites
 };
 

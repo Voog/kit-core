@@ -3,11 +3,29 @@
   "version": "0.0.1",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "build": "rollup -m inline -c && echo `echo $(date +\"[%H:%M:%S]\") rebuilt ./index.js`",
+    "watch": "watch 'npm run build' ./src",
+    "test": "node ./test/test.js",
+    "watch:test": "watch 'npm run build && npm run test' ./src ./test"
+  },
   "author": "Mikk Pristavka",
   "license": "ISC",
   "dependencies": {
     "bluebird": "^3.3.1",
+    "highland": "^2.7.1",
+    "lodash": "^4.5.0",
+    "mime-db": "^1.22.0",
+    "mime-type": "^3.0.4",
+    "request": "^2.69.0",
     "voog": "git+https://github.com/Voog/voog.js.git"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.5.1",
+    "babel-preset-es2015-rollup": "^1.1.1",
+    "rollup": "^0.25.4",
+    "rollup-plugin-babel": "^2.3.9",
+    "rollup-plugin-json": "^2.0.0",
+    "watch": "^0.17.1"
   }
 }

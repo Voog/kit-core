@@ -1,18 +1,40 @@
-"use strict";
+'use strict';
 
-var fs = require("fs");
-var Promise = require('bluebird').Promise;
+import fs from 'fs';
+import path from 'path';
 
-module.exports = {
-  listFiles: function(path) {
-    return new Promise(function(resolve, reject) {
-      fs.readdir(path, function(err, data) {
-        if (err) {
-          reject(err);
-        }
+const listFiles = (folderPath) => {
+  return fs.readdirSync(folderPath).filter(
+    function(item) {
+    var itemPath = path.join(folderPath, item);
+    return fs.statSync(itemPath).isFile();
+  });
+};
 
-        resolve(data);
-      });
-    });
-  }
-}
+const listFolders = (folderPath) => {
+  return fs.readdirSync(folderPath).filter(function(item) {
+    var itemPath = path.join(folderPath, item);
+    return fs.statSync(itemPath).isDirectory();
+  });
+};
+
+const getFileContents = (filePath, options) => {
+  return fs.readFileSync(filePath, options);
+};
+
+const deleteFile = (filePath) => {
+  return ['fs.unlinkSync', filePath];
+};
+
+const writeFile = (filePath, data) => {
+  return fs.writeFileSync(filePath, data);
+};
+
+export default {
+  listFiles,
+  listFolders,
+  deleteFile,
+  writeFile,
+  cwd: process.cwd,
+  getFileContents
+};
