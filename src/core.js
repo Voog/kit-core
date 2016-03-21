@@ -4,8 +4,22 @@ var fs = require("fs");
 var file_utils = require("./file_utils");
 var config = require("./config");
 
-module.exports = {
-  file_utils: file_utils,
-  config: config
-};
+import fs from 'fs';
 
+import fileUtils from './file_utils';
+import config from './config';
+import projects from './projects';
+import actions from './actions';
+
+import {default as project} from './project_context';
+import {functions as scopedFunctions} from './project_context';
+
+export default Object.assign({},
+  scopedFunctions, {
+  fileUtils,
+  config,
+  projects,
+  actions,
+  version,
+  project
+});
