@@ -4,10 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "rollup -m inline -c && echo `echo $(date +\"[%H:%M:%S]\") rebuilt ./index.js`",
-    "watch": "watch 'npm run build' ./src",
-    "test": "node ./test/test.js",
-    "watch:test": "watch 'npm run build && npm run test' ./src ./test"
+    "all": "npm run build && npm run test",
+    "prebuild": "echo Rebuilding ./index.js",
+    "build": "rollup -m inline -c",
+    "postbuild": "echo `echo Rebuilt ./index.js $(date +\"[%H:%M:%S]\")`",
+    "pretest": "echo Running tests",
+    "test": "mocha ./test/test.js || true",
+    "watch": "watch 'npm run all' ./src ./test",
+    "watch:build": "watch 'npm-run-all build test' ./src",
+    "watch:test": "watch 'npm run test' ./test"
   },
   "author": "Mikk Pristavka",
   "license": "ISC",
@@ -23,9 +28,14 @@
   "devDependencies": {
     "babel-cli": "^6.5.1",
     "babel-preset-es2015-rollup": "^1.1.1",
+    "chai": "^3.5.0",
+    "mocha": "^2.4.5",
+    "mocha-sinon": "^1.1.5",
     "rollup": "^0.25.4",
     "rollup-plugin-babel": "^2.3.9",
     "rollup-plugin-json": "^2.0.0",
+    "sinon": "^1.17.3",
+    "sinon-chai": "^2.8.0",
     "watch": "^0.17.1"
   }
 }
