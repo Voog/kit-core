@@ -6,18 +6,15 @@ import fs from 'fs';
 
 import fileUtils from './file_utils';
 import config from './config';
-import projects from './projects';
+import sites from './sites';
 import actions from './actions';
+import {default as site} from './site_context';
 
-import {default as project} from './project_context';
-import {functions as scopedFunctions} from './project_context';
-
-export default Object.assign({},
-  scopedFunctions, {
+export default {
   fileUtils,
   config,
-  projects,
+  sites,
   actions,
-  version,
-  project
-});
+  site,
+  version
+};

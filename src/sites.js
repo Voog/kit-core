@@ -9,37 +9,41 @@ import mime from 'mime-type/with-db';
 
 mime.define('application/vnd.voog.design.custom+liquid', {extensions: ['tpl']}, mime.dupOverwrite);
 
-// byName :: string -> object?
-const byName = (name) => {
-  return config.sites().filter(site => {
-    return site.name === name || site.host === name;
-  })[0];
+const byName = (name, options) => {
+  return config.siteByName(name, options);
 };
 
-// add :: object -> bool
-const add = (data) => {
+const add = (data, options) => {
   if (_.has(data, 'host') && _.has(data, 'token')) {
-    let sites = config.sites();
+    let sites = config.sites(options);
     sites.push(data);
-    config.write('sites', sites);
+    config.write('sites', sites, options);
     return true;
   } else {
     return false;
   };
 };
 
-// remove :: string -> bool
-const remove = (name) => {
-  let sitesInConfig = config.sites();
+const remove = (name, options) => {
+  let sitesInConfig = config.sites(options);
   let siteNames = sitesInConfig.map(site => site.name || site.host);
   let idx = siteNames.indexOf(name);
   if (idx < 0) { return false; }
-  let finalSites = sitesInConfig.slice(0, idx).concat(sitesInConfig.slice(idx + 1));
-  return config.write('sites', finalSites);
+  let finalSites = sitesInConfig
+    .slice(0, idx)
+    .concat(sitesInConfig.slice(idx + 1));
+
+  return config.write('sites', finalSites, options);
 };
 
 const getFileInfo = (filePath) => {
-  let stat = fs.statSync(filePath);
+  let stat;
+  try {
+    stat = fs.statSync(filePath);
+  } catch (e) {
+    return;
+  }
+
   let fileName = path.basename(filePath);
   return {
     file: fileName,
@@ -50,12 +54,11 @@ const getFileInfo = (filePath) => {
   };
 };
 
-const totalFilesFor = (projectName) => {
-  let files = filesFor(projectName);
+const totalFilesFor = (siteName) => {
+  let files = filesFor(siteName);
   return Object.keys(files).reduce((total, folder) => total + files[folder].length, 0);
 };
 
-// filesFor :: string -> object?
 const filesFor = (name) => {
   let folders = [
     'assets', 'components', 'images', 'javascripts', 'layouts', 'stylesheets'
@@ -66,7 +69,7 @@ const filesFor = (name) => {
   let root = fileUtils.listFolders(workingDir);
 
   if (root) {
-    return folders.reduce(function(structure, folder) {
+    return folders.reduce((structure, folder) => {
       if (root.indexOf(folder) >= 0) {
         let folderPath = path.join(workingDir, folder);
         structure[folder] = fileUtils.listFiles(folderPath).filter(function(file) {
@@ -74,7 +77,7 @@ const filesFor = (name) => {
           let stat = fs.statSync(fullPath);
 
           return stat.isFile();
-        }).map(function(file) {
+        }).map(file => {
           let fullPath = path.join(folderPath, file);
 
           return getFileInfo(fullPath);
@@ -85,35 +88,30 @@ const filesFor = (name) => {
   }
 };
 
-// dirFor :: string -> string?
-const dirFor = (name) => {
-  let site = byName(name);
+const dirFor = (name, options) => {
+  let site = byName(name, options);
   if (site) {
     return site.dir || site.path;
   }
 };
 
-// hostFor :: string -> string?
-const hostFor = (name) => {
-  let site = byName(name);
+const hostFor = (name, options) => {
+  let site = byName(name, options);
   if (site) {
     return site.host;
   }
 };
 
-// tokenFor :: string -> string?
-const tokenFor = (name) => {
-  let site = byName(name);
+const tokenFor = (name, options) => {
+  let site = byName(name, options);
   if (site) {
     return site.token || site.api_token;
   }
 };
 
-// names :: * -> [string]
-const names = () => {
-  return config.sites().map(function(site) {
-    return site.name || site.host;
-  });
+const names = (options) => {
+  return config.sites(options).map(site => site.name || site.host);
+
 };
 
 export default {
@@ -125,6 +123,7 @@ export default {
   dirFor,
   hostFor,
   tokenFor,
-  names
+  names,
+  getFileInfo
 };
 

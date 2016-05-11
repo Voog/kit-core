@@ -32,7 +32,7 @@ const getManifest = (name) => {
 };
 
 const writeManifest = (name, manifest) => {
-  let manifestPath = `${projects.dirFor(name)}/manifest2.json`;
+  let manifestPath = `${sites.dirFor(name)}/manifest2.json`;
   fileUtils.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 };
 
@@ -41,7 +41,7 @@ const generateRemoteManifest = (name) => {
 };
 
 const readManifest = (name) => {
-  let manifestFilePath = path.join(path.normalize(projects.dirFor(name)), 'manifest2.json');
+  let manifestFilePath = path.join(path.normalize(sites.dirFor(name)), 'manifest2.json');
   if (!fs.existsSync(manifestFilePath)) { return; }
 
   try {

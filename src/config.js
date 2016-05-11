@@ -2,6 +2,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import _ from 'lodash';
+import CustomError from './custom_error';
 
 const CONFIG_FILENAME = '.voog';
 
@@ -12,93 +14,98 @@ const LOCAL_CONFIG = path.join(LOCALDIR, CONFIG_FILENAME);
 const GLOBAL_CONFIG = path.join(HOMEDIR, CONFIG_FILENAME);
 
 const siteByName = (name, options) => {
-  return sites().filter(function(p) {
-    return p.name === name;
-  })[0];
+  return _.head(
+    sites(options).filter(p => p.name === name)
+  );
 };
 
 const sites = (options) => {
-  return read('sites', options) || read('projects', options) || [];
+  return read('sites', options) || [];
 };
 
 const write = (key, value, options) => {
-  let path;
-  if (!options || (_.has(options, 'global') && options.global === true)) {
-    path = GLOBAL_CONFIG;
-  } else {
-    path = LOCAL_CONFIG;
-  }
+  let filePath = configPathFromOptions(options);
+
   let config = read(null, options) || {};
   config[key] = value;
 
   let fileContents = JSON.stringify(config, null, 2);
 
-  fs.writeFileSync(path, fileContents);
+  fs.writeFileSync(filePath, fileContents);
   return true;
 };
 
 const read = (key, options) => {
-  let path;
-  if (!options || (_.has(options, 'global') && options.global === true)) {
-    path = GLOBAL_CONFIG;
-  } else {
-    path = LOCAL_CONFIG;
-  }
+  let filePath = configPathFromOptions(options);
 
-  try {
-    let data = fs.readFileSync(path, 'utf8');
-    let parsedData = JSON.parse(data);
-    if (typeof key === 'string') {
-      return parsedData[key];
-    } else {
-      return parsedData;
+  let data = fs.readFileSync(filePath, 'utf8');
+  let parsedData = JSON.parse(data);
+
+  if (typeof key === 'string') {
+    return parsedData[key];
+  } else {
+    return parsedData;
+  }
+};
+
+const configPathFromOptions = (options = {}) => {
+  if ((_.has(options, 'global') && options.global === true)) {
+    try {
+      if (fs.statSync(GLOBAL_CONFIG).isFile()) {
+        return GLOBAL_CONFIG;
+      } else {
+        throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
+      }
+    } catch (e) {
+      throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
     }
-  } catch (e) {
-    return;
-  }
-};
-
-const deleteKey = (key, options) => {
-  if (!options) {
-    let path = GLOBAL_CONFIG;
-  } else if (options.hasOwnProperty('global') && options.global === true) {
-    let path = GLOBAL_CONFIG;
+  } else if (_.has(options, 'local') && options.local === true) {
+    try {
+      if (fs.statSync(LOCAL_CONFIG).isFile()) {
+        return LOCAL_CONFIG;
+      } else {
+        throw new Error;
+      }
+    } catch (e) {
+      let filePath = path.join(LOCAL_CONFIG, '../..', CONFIG_FILENAME);
+      try {
+        if (fs.statSync(filePath).isFile()) {
+          return filePath;
+        } else {
+          throw new CustomError('Unable to find configuration file!', filePath);
+        }
+      } catch (e) {
+        throw new CustomError('Unable to find configuration file!', filePath);
+      }
+      throw new CustomError('Unable to find configuration file!', LOCAL_CONFIG);
+    }
+  } else if (_.has(options, 'config_path')) {
+    try {
+      if (fs.statSync(options.config_path).isFile()) {
+        return options.config_path;
+      } else {
+        throw new CustomError('Unable to find configuration file!', options.config_path);
+      }
+    } catch(e) {
+      throw new CustomError('Unable to find configuration file!', options.config_path);
+    }
   } else {
-    let path = LOCAL_CONFIG;
+    try {
+      if (fs.statSync(GLOBAL_CONFIG).isFile()) {
+        return GLOBAL_CONFIG;
+      } else {
+        throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
+      }
+    } catch (e) {
+      throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
+    }
   }
-
-  let config = read(null, options);
-  let deleted = delete config[key];
-
-  if (deleted) {
-    let fileContents = JSON.stringify(config);
-    fs.writeFileSync(path, fileContents);
-  }
-
-  return deleted;
-};
-
-const isPresent = (global) => {
-  if (global) {
-    let path = GLOBAL_CONFIG;
-  } else {
-    let path = LOCAL_CONFIG;
-  }
-  return fs.existsSync(path);
-};
-
-const hasKey = (key, options) => {
-  let config = read(null, options);
-  return (typeof config !== 'undefined') && config.hasOwnProperty(key);
-};
+}
 
 export default {
   siteByName,
   write,
   read,
-  delete: deleteKey,
-  isPresent,
-  hasKey,
-  sites
+  sites,
+  configPathFromOptions
 };
-

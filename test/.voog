@@ -1,0 +1,10 @@
+{
+  "sites": [
+    {
+      "host": "testhost.voog.com:80",
+      "token": "SECRET",
+      "name": "test"
+    }
+  ],
+  "testkey": "testvalue"
+}

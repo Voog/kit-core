@@ -19,7 +19,8 @@ export default {
     'voog',
     'bluebird',
     'highland',
-    'request'
+    'request',
+    'util'
   ],
   dest: 'index.js'
 };
