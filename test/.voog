@@ -1,7 +1,7 @@
 {
   "sites": [
     {
-      "host": "testhost.voog.com:80",
+      "host": "testhost.voog.com",
       "token": "SECRET",
       "name": "test"
     }
