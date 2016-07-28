@@ -1,6 +1,5 @@
 'use strict';
 
-import config from './config';
 import sites from './sites';
 import Voog from 'voog';
 import fileUtils from './file_utils';
@@ -10,10 +9,7 @@ import request from 'request';
 import path from 'path';
 import {Promise} from 'bluebird';
 
-const LAYOUTFOLDERS = ['components', 'layouts'];
-const ASSETFOLDERS = ['assets', 'images', 'javascripts', 'stylesheets'];
-
-const clientFor = (name, options) => {
+const clientFor = (name, options = {}) => {
   let host = sites.hostFor(name, options);
   let token = sites.tokenFor(name, options);
 
@@ -22,123 +18,120 @@ const clientFor = (name, options) => {
   }
 };
 
-const getLayoutContents = (siteName, id) => {
+const getTotalFileCount = (name, options = {}) => {
   return new Promise((resolve, reject) => {
-    clientFor(siteName).layout(id, {}, (err, data) => {
-      if (err) { reject(err) }
+    Promise.all([getLayouts(name, options), getLayoutAssets(name, options)]).then(([layouts, assets]) => {
+      resolve(layouts.length + assets.length);
+    }).catch(reject);
+  });
+};
+
+const getLayoutContents = (siteName, id, options = {}) => {
+  return new Promise((resolve, reject) => {
+    clientFor(siteName, options).layout(id, {}, (err, data) => {
+      if (err) { reject(err); }
       resolve(data.body);
     });
   });
 };
 
-const getLayoutAssetContents = (siteName, id) => {
+const getLayoutAssetContents = (siteName, id, options = {}) => {
   return new Promise((resolve, reject) => {
-    clientFor(siteName).layoutAsset(id, {}, (err, data) => {
-      if (err) { reject(err) }
+    clientFor(siteName, options).layoutAsset(id, {}, (err, data) => {
+      if (err) { reject(err); }
       if (data.editable) {
         resolve(data.data);
       } else {
         resolve(data.public_url);
       }
-    })
+    });
   });
 };
 
-const getLayouts = (siteName, opts={}) => {
+const getLayouts = (siteName, options = {}) => {
   return new Promise((resolve, reject) => {
-    clientFor(siteName)
-      .layouts(Object.assign({}, {per_page: 250}, opts), (err, data) => {
-        if (err) { reject(err) }
+    clientFor(siteName, options)
+      .layouts(Object.assign({}, {per_page: 250}, options), (err, data) => {
+        if (err) { reject(err); }
         resolve(data);
       });
   });
 };
 
-const getLayoutAssets = (siteName, opts={}) => {
+const getLayoutAssets = (siteName, options = {}) => {
   return new Promise((resolve, reject) => {
-    clientFor(siteName)
-      .layoutAssets(Object.assign({}, {per_page: 250}, opts), (err, data) => {
-        if (err) { reject(err) }
+    clientFor(siteName, options)
+      .layoutAssets(Object.assign({}, {per_page: 250}, options), (err, data) => {
+        if (err) { reject(err); }
         resolve(data);
       });
   });
 };
 
-const pullAllFiles = (siteName) => {
+const pullAllFiles = (siteName, options = {}) => {
   return new Promise((resolve, reject) => {
-    let siteDir = sites.dirFor(siteName);
+    let siteDir = sites.dirFor(siteName, options);
 
     Promise.all([
-      getLayouts(siteName),
-      getLayoutAssets(siteName)
+      getLayouts(siteName, options),
+      getLayoutAssets(siteName, options)
     ]).then(([layouts, assets]) => {
       Promise.all([
         layouts.map(l => {
           let filePath = path.join(siteDir, `${l.component ? 'components' : 'layouts'}/${normalizeTitle(l.title)}.tpl`);
-          return pullFile(siteName, filePath);
+          return pullFile(siteName, filePath, options);
         }).concat(assets.map(a => {
           let filePath = path.join(siteDir, `${_.includes(['stylesheet', 'image', 'javascript'], a.asset_type) ? a.asset_type : 'asset'}s/${a.filename}`);
-          return pullFile(siteName, filePath);
+          return pullFile(siteName, filePath, options);
         }))
       ]).then(resolve);
-
-    });
-  })
+    }).catch(reject);
+  });
 };
 
-const pushAllFiles = (siteName) => {
+const pushAllFiles = (siteName, options = {}) => {
   return new Promise((resolve, reject) => {
-    let siteDir = sites.dirFor(siteName);
-
-    // assets.filter(a => ['js', 'css'].indexOf(a.filename.split('.').reverse()[0]) >= 0)
+    let siteDir = sites.dirFor(siteName, options);
 
     Promise.all([
-      getLayouts(siteName),
-      getLayoutAssets(siteName)
+      getLayouts(siteName, options),
+      getLayoutAssets(siteName, options)
     ]).then(([layouts, assets]) => {
       Promise.all([
         layouts.map(l => {
           let filePath = path.join(siteDir, `${l.component ? 'components' : 'layouts'}/${normalizeTitle(l.title)}.tpl`);
-          return pushFile(siteName, filePath);
+          return pushFile(siteName, filePath, options);
         }).concat(assets.map(a => {
           let filePath = path.join(siteDir, `${_.includes(['stylesheet', 'image', 'javascript'], a.asset_type) ? a.asset_type : 'asset'}s/${a.filename}`);
-          return pushFile(siteName, filePath);
+          return pushFile(siteName, filePath, options);
         }))
       ]).then(resolve);
-    });
+    }).catch(reject);
   });
-}
+};
 
-const findLayoutOrComponent = (fileName, component, siteName, options) => {
+const findLayoutOrComponent = (fileName, component, siteName, options = {}) => {
   let name = normalizeTitle(getLayoutNameFromFilename(fileName));
   return new Promise((resolve, reject) => {
     return clientFor(siteName, options).layouts({
       per_page: 250,
       'q.layout.component': component || false
-    }, (err, data) => {
-      if (err) { reject(err) }
+    }, (err, data = []) => {
+      if (err) { reject(err); }
       let ret = data.filter(l => normalizeTitle(l.title) == name);
       if (ret.length === 0) { reject(undefined); }
       resolve(_.head(ret));
     });
   });
-}
-
-const findLayout = (fileName, siteName, options) => {
-  return findLayoutOrComponent(fileName, false, siteName, options);
 };
 
-const findComponent = (fileName, siteName, options) => {
-  return findLayoutOrComponent(fileName, true, siteName, options);
-};
-
-const findLayoutAsset = (fileName, siteName, options) => {
+const findLayoutAsset = (fileName, siteName, options = {}) => {
   return new Promise((resolve, reject) => {
     return clientFor(siteName, options).layoutAssets({
       per_page: 250,
       'q.layout_asset.filename': fileName
     }, (err, data) => {
-      if (err) { reject(err) }
+      if (err) { reject(err); }
       resolve(_.head(data));
     });
   });
@@ -150,16 +143,21 @@ const getFileNameFromPath = (filePath) => {
 
 const getLayoutNameFromFilename = (fileName) => {
   return _.head(fileName.split('.'));
-}
+};
 
-const findFile = (filePath, siteName, options) => {
+const findFile = (filePath, siteName, options = {}) => {
   let type = getTypeFromRelativePath(filePath);
   let fileName = getFileNameFromPath(filePath);
+
   if (_.includes(['layout', 'component'], type)) {
     return findLayoutOrComponent(fileName, (type == 'component'), siteName, options);
   } else {
     return findLayoutAsset(fileName, siteName, options);
   }
+};
+
+const titleFromFilename = (fileName) => {
+  return _.head(fileName.split('.')).replace(/_/, ' ');
 };
 
 const normalizeTitle = (title) => {
@@ -180,6 +178,39 @@ const getTypeFromRelativePath = (path) => {
   return folderToTypeMap[folder];
 };
 
+const getTypeFromExtension = (fileName) => {
+  if (fileName.split('.').length > 1) {
+    let extension = _.last(fileName.split('.'));
+
+    switch (extension) {
+    case 'js':
+      return 'javascript';
+    case 'css':
+      return 'stylesheet';
+    case 'jpg':
+    case 'png':
+    case 'jpeg':
+    case 'gif':
+      return 'image';
+    case 'tpl':
+      return 'layout';
+    default:
+      return 'asset';
+    }
+  }
+};
+
+const getSubfolderForType = (type) => {
+  return {
+    'asset': 'assets',
+    'image': 'images',
+    'javascript': 'javascripts',
+    'stylesheet': 'stylesheets',
+    'component': 'components',
+    'layout': 'layouts'
+  }[type];
+};
+
 const normalizePath = (path, siteDir) => {
   return path
     .replace(siteDir, '')
@@ -191,23 +222,37 @@ const writeFile = (siteName, file, destPath) => {
     if (file) {
       if (_.includes(Object.keys(file), 'layout_name')) {
         getLayoutContents(siteName, file.id).then(contents => {
-          try { fs.mkdirSync(path.dirname(destPath)) } catch(e) { if (e.code != 'EEXIST') { throw e } };
+          try {
+            fs.mkdirSync(path.dirname(destPath));
+          } catch (e) {
+            if (e.code != 'EEXIST') { throw e; }
+          }
+
           fs.writeFile(destPath, contents, (err) => {
-            if (err) { reject(err) }
+            if (err) { reject(err); }
             resolve(file);
           });
-        })
+        });
       } else if (file.editable) {
         getLayoutAssetContents(siteName, file.id).then(contents => {
-          try { fs.mkdirSync(path.dirname(destPath)) } catch(e) { if (e.code != 'EEXIST') { throw e } };
+          try {
+            fs.mkdirSync(path.dirname(destPath));
+          } catch (e) {
+            if (e.code != 'EEXIST') { throw e; }
+          }
           fs.writeFile(destPath, contents, (err) => {
-            if (err) { reject(err) }
+            if (err) { reject(err); }
             resolve(file);
           });
-        })
+        });
       } else {
         let url = file.public_url;
-        try { fs.mkdirSync(path.dirname(destPath)) } catch(e) { if (e.code != 'EEXIST') { throw e } };
+        try {
+          fs.mkdirSync(path.dirname(destPath));
+        } catch (e) {
+          if (e.code != 'EEXIST') { throw e; }
+        }
+
         let stream = fs.createWriteStream(destPath);
         if (url && stream) {
           let req = request.get(url).on('error', (err) => reject(err));
@@ -220,40 +265,76 @@ const writeFile = (siteName, file, destPath) => {
     } else {
       reject();
     }
-  })
+  });
 };
 
-const uploadFile = (siteName, file, filePath, options) => {
+const uploadFile = (siteName, file, filePath, options = {}) => {
   let client = clientFor(siteName, options);
   return new Promise((resolve, reject) => {
-    console.log(file);
     if (file) {
       if (_.includes(Object.keys(file), 'layout_name')) {
         let contents = fs.readFileSync(filePath, 'utf8');
-        console.log("contents:", contents);
         client.updateLayout(file.id, {
           body: contents
         }, (err, data) => {
-          (err ? reject : resolve)(file)
+          (err ? reject : resolve)(data);
         });
       } else if (file.editable) {
         let contents = fs.readFileSync(filePath, 'utf8');
-        console.log("contents:", contents);
         client.updateLayoutAsset(file.id, {
           data: contents
         }, (err, data) => {
-          (err ? reject : resolve)(file)
+          (err ? reject : resolve)(data);
         });
       } else {
         resolve(file);
       }
     } else {
-      reject(file);
+      createFile(siteName, filePath, options).then(resolve, reject);
     }
   });
 };
 
-const pullFile = (siteName, filePath, options) => {
+const createFile = (siteName, filePath, options = {}) => {
+  let client = clientFor(siteName, options);
+  return new Promise((resolve, reject) => {
+    let type = getTypeFromRelativePath(filePath);
+    let file = fileObjectFromPath(filePath);
+
+    if (_.includes(['layout', 'component'], type)) {
+      client.createLayout(file, (err, data) => {
+        (err ? reject : resolve)(data);
+      });
+    } else {
+      client.createLayoutAsset(file, (err, data) => {
+        (err ? reject : resolve)(data);
+      });
+    }
+  });
+};
+
+const fileObjectFromPath = (filePath, options = {}) => {
+  let type = getTypeFromRelativePath(filePath);
+  let fileName = getFileNameFromPath(filePath);
+
+  if (_.includes(['layout', 'component'], type)) {
+    return {
+      title: _.has(options, 'title') ? options.title : titleFromFilename(fileName),
+      component: type == 'component',
+      content_type: _.has(options, 'content_type') ? options.content_type : 'page',
+      body: fs.readFileSync(filePath, 'utf8'),
+      parent_id: _.has(options, 'parent_id') ? options.parent_id : null,
+      parent_title: _.has(options, 'parent_title') ? options.parent_title : null
+    };
+  } else {
+    return {
+      filename: fileName,
+      data: fs.readFileSync(filePath, 'utf8')
+    };
+  }
+};
+
+const pullFile = (siteName, filePath, options = {}) => {
   let siteDir = sites.dirFor(siteName, options);
 
   let normalizedPath = normalizePath(filePath, siteDir);
@@ -266,29 +347,111 @@ const pullFile = (siteName, filePath, options) => {
       }
 
       resolve(writeFile(siteName, file, filePath, options));
-    })
+    });
   });
-}
+};
 
-const pushFile = (siteName, filePath, options) => {
+const pushFile = (siteName, filePath, options = {}) => {
   let siteDir = sites.dirFor(siteName, options);
   let normalizedPath = normalizePath(filePath, siteDir);
 
   return new Promise((resolve, reject) => {
-    findFile(normalizedPath, siteName, options).then(file => {
-      if (!file || typeof file === 'undefined') {
-        return reject(file);
+    findFile(normalizedPath, siteName, options).then(
+      file => {
+        if (!file || typeof file === 'undefined') {
+          return reject(file);
+        }
+        resolve(uploadFile(siteName, file, filePath, options));
       }
-      resolve(uploadFile(siteName, file, filePath, options));
-    })
+    ).catch((err) => {console.log(err);resolve(uploadFile(siteName, undefined, filePath, options));});
+  });
+};
+
+const addFile = (siteName, fileName, options = {}) => {
+  return new Promise((resolve, reject) => {
+    let file;
+    let type;
+
+    if (fileName.split('/').length > 1) {
+      file = getFileNameFromPath(fileName, options);
+      type = getTypeFromRelativePath(fileName);
+    } else {
+      file = fileName;
+      type = getTypeFromExtension(fileName);
+    }
+
+    let subFolder = getSubfolderForType(type);
+    let projectDir = sites.dirFor(siteName, options);
+    let finalPath = path.join(projectDir, subFolder, file);
+
+    let relativePath = finalPath.replace(projectDir + '/', '');
+
+    if (fileUtils.fileExists(relativePath, options)) {
+      reject({file: fileName, message: 'File already exists!'});
+    } else if (typeof fileUtils.writeFile(relativePath, '') == 'undefined') {
+      createFile(siteName, relativePath, options).then(resolve);
+    } else {
+      reject({file: fileName, message: 'Unable to create file!'});
+    }
+  });
+};
+
+const deleteFile = (siteName, fileName, options) => {
+  let client = clientFor(siteName, options);
+  return new Promise((resolve, reject) => {
+    let type = getTypeFromRelativePath(fileName);
+    findFile(fileName, siteName, options).then(file => {
+      if (_.includes(['layout', 'component'], type)) {
+        client.deleteLayout(file.id, (err, data) => {
+          (err ? reject : resolve)(data);
+        });
+      } else {
+        client.deleteLayoutAsset(file.id, (err, data) => {
+          (err ? reject : resolve)(data);
+        });
+      }
+    });
+  });
+};
+
+const removeFile = (siteName, fileName, options = {}) => {
+  return new Promise((resolve, reject) => {
+    let file;
+    let type;
+
+    if (fileName.split('/').length > 1) {
+      file = getFileNameFromPath(fileName, options);
+      type = getTypeFromRelativePath(fileName);
+    } else {
+      file = fileName;
+      type = getTypeFromExtension(fileName);
+    }
+
+    let subFolder = getSubfolderForType(type);
+    let projectDir = sites.dirFor(siteName, options);
+    let finalPath = path.join(projectDir, subFolder, file);
+
+    let relativePath = finalPath.replace(projectDir + '/', '');
+
+    if (fileUtils.fileExists(finalPath, options)) {
+      if (typeof fileUtils.deleteFile(relativePath) == 'undefined') {
+        deleteFile(siteName, relativePath, options).then(resolve);
+      } else {
+        reject({file: fileName, message: 'Unable to remove file!'});
+      }
+    }
   });
 };
 
 export default {
   clientFor,
+  getTotalFileCount,
   pullAllFiles,
   pushAllFiles,
   findFile,
   pushFile,
-  pullFile
+  pullFile,
+  createFile,
+  addFile,
+  removeFile
 };

@@ -9,11 +9,11 @@ import mime from 'mime-type/with-db';
 
 mime.define('application/vnd.voog.design.custom+liquid', {extensions: ['tpl']}, mime.dupOverwrite);
 
-const byName = (name, options) => {
+const byName = (name, options = {}) => {
   return config.siteByName(name, options);
 };
 
-const add = (data, options) => {
+const add = (data, options = {}) => {
   if (_.has(data, 'host') && _.has(data, 'token')) {
     let sites = config.sites(options);
     sites.push(data);
@@ -21,10 +21,10 @@ const add = (data, options) => {
     return true;
   } else {
     return false;
-  };
+  }
 };
 
-const remove = (name, options) => {
+const remove = (name, options = {}) => {
   let sitesInConfig = config.sites(options);
   let siteNames = sitesInConfig.map(site => site.name || site.host);
   let idx = siteNames.indexOf(name);
@@ -37,21 +37,20 @@ const remove = (name, options) => {
 };
 
 const getFileInfo = (filePath) => {
-  let stat;
-  try {
-    stat = fs.statSync(filePath);
-  } catch (e) {
+  let stat = fs.statSync(filePath);
+
+  if (stat.isFile()) {
+    let fileName = path.basename(filePath);
+    return {
+      file: fileName,
+      size: stat.size,
+      contentType: mime.lookup(fileName),
+      path: filePath,
+      updatedAt: stat.mtime
+    };
+  } else {
     return;
   }
-
-  let fileName = path.basename(filePath);
-  return {
-    file: fileName,
-    size: stat.size,
-    contentType: mime.lookup(fileName),
-    path: filePath,
-    updatedAt: stat.mtime
-  };
 };
 
 const totalFilesFor = (siteName) => {
@@ -88,30 +87,39 @@ const filesFor = (name) => {
   }
 };
 
-const dirFor = (name, options) => {
-  let site = byName(name, options);
-  if (site) {
+const dirFor = (name, options = {}) => {
+  let site = byName(name, options);;
+  if (options.dir || options.path) {
+    return options.dir || options.path;
+  } else if (site) {
     return site.dir || site.path;
   }
 };
 
-const hostFor = (name, options) => {
+const hostFor = (name, options = {}) => {
   let site = byName(name, options);
-  if (site) {
+  if (options.host) {
+    return options.host;
+  } else if (site) {
     return site.host;
   }
 };
 
-const tokenFor = (name, options) => {
+const tokenFor = (name, options = {}) => {
   let site = byName(name, options);
-  if (site) {
+  if (options.token || options.api_token) {
+    return options.token || options.api_token;
+  } else if (site) {
     return site.token || site.api_token;
   }
 };
 
 const names = (options) => {
   return config.sites(options).map(site => site.name || site.host);
+};
 
+const hosts = (options) => {
+  return config.sites(options).map(site => site.host);
 };
 
 export default {
@@ -124,6 +132,6 @@ export default {
   hostFor,
   tokenFor,
   names,
+  hosts,
   getFileInfo
 };
-

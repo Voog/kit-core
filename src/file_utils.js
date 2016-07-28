@@ -4,8 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 const listFiles = (folderPath) => {
-  return fs.readdirSync(folderPath).filter(
-    function(item) {
+  return fs.readdirSync(folderPath).filter(function(item) {
     var itemPath = path.join(folderPath, item);
     return fs.statSync(itemPath).isFile();
   });
@@ -18,12 +17,20 @@ const listFolders = (folderPath) => {
   });
 };
 
-const getFileContents = (filePath, options) => {
+const getFileContents = (filePath, options = {}) => {
   return fs.readFileSync(filePath, options);
 };
 
+const fileExists = (filePath) => {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch (e) {
+    return false;
+  }
+};
+
 const deleteFile = (filePath) => {
-  return ['fs.unlinkSync', filePath];
+  return fs.unlinkSync(filePath);
 };
 
 const writeFile = (filePath, data) => {
@@ -36,5 +43,6 @@ export default {
   deleteFile,
   writeFile,
   cwd: process.cwd,
-  getFileContents
+  getFileContents,
+  fileExists
 };

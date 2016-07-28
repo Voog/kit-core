@@ -13,18 +13,28 @@ const LOCALDIR = process.cwd();
 const LOCAL_CONFIG = path.join(LOCALDIR, CONFIG_FILENAME);
 const GLOBAL_CONFIG = path.join(HOMEDIR, CONFIG_FILENAME);
 
-const siteByName = (name, options) => {
-  return _.head(
-    sites(options).filter(p => p.name === name)
-  );
+const findLocalConfig = () => {
+  if (fileExists(path.join(path.resolve(LOCALDIR, '..'), CONFIG_FILENAME))) {
+    return path.join(path.resolve(LOCALDIR, '..'), CONFIG_FILENAME);
+  } else {
+    return LOCAL_CONFIG;
+  }
 };
 
-const sites = (options) => {
+const siteByName = (name, options = {}) => {
+  return sites(options).filter(p => p.name === name || p.host === name)[0];
+};
+
+const sites = (options = {}) => {
   return read('sites', options) || [];
 };
 
-const write = (key, value, options) => {
-  let filePath = configPathFromOptions(options);
+const write = (key, value, options = {}) => {
+  let filePath = pathFromOptions(options);
+
+  if (!config_exists(filePath)) {
+    create(options);
+  }
 
   let config = read(null, options) || {};
   config[key] = value;
@@ -35,8 +45,12 @@ const write = (key, value, options) => {
   return true;
 };
 
-const read = (key, options) => {
-  let filePath = configPathFromOptions(options);
+const read = (key, options = {}) => {
+  let filePath = pathFromOptions(options);
+
+  if (filePath === LOCAL_CONFIG && !config_exists(options)) {
+    filePath = GLOBAL_CONFIG;
+  }
 
   let data = fs.readFileSync(filePath, 'utf8');
   let parsedData = JSON.parse(data);
@@ -48,64 +62,47 @@ const read = (key, options) => {
   }
 };
 
-const configPathFromOptions = (options = {}) => {
-  if ((_.has(options, 'global') && options.global === true)) {
-    try {
-      if (fs.statSync(GLOBAL_CONFIG).isFile()) {
-        return GLOBAL_CONFIG;
-      } else {
-        throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
-      }
-    } catch (e) {
-      throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
-    }
-  } else if (_.has(options, 'local') && options.local === true) {
-    try {
-      if (fs.statSync(LOCAL_CONFIG).isFile()) {
-        return LOCAL_CONFIG;
-      } else {
-        throw new Error;
-      }
-    } catch (e) {
-      let filePath = path.join(LOCAL_CONFIG, '../..', CONFIG_FILENAME);
-      try {
-        if (fs.statSync(filePath).isFile()) {
-          return filePath;
-        } else {
-          throw new CustomError('Unable to find configuration file!', filePath);
-        }
-      } catch (e) {
-        throw new CustomError('Unable to find configuration file!', filePath);
-      }
-      throw new CustomError('Unable to find configuration file!', LOCAL_CONFIG);
-    }
-  } else if (_.has(options, 'config_path')) {
-    try {
-      if (fs.statSync(options.config_path).isFile()) {
-        return options.config_path;
-      } else {
-        throw new CustomError('Unable to find configuration file!', options.config_path);
-      }
-    } catch(e) {
-      throw new CustomError('Unable to find configuration file!', options.config_path);
-    }
+const create = (options = {}) => {
+  let filePath = pathFromOptions(options);
+
+  if (!config_exists(options)) {
+    fs.writeFileSync(filePath, '{}');
+    return true;
   } else {
-    try {
-      if (fs.statSync(GLOBAL_CONFIG).isFile()) {
-        return GLOBAL_CONFIG;
-      } else {
-        throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
-      }
-    } catch (e) {
-      throw new CustomError('Unable to find configuration file!', GLOBAL_CONFIG);
-    }
+    return false;
   }
-}
+};
+
+const pathFromOptions = (options = {}) => {
+  if ((_.has(options, 'global') && options.global === true)) {
+    return GLOBAL_CONFIG;
+  } else if (_.has(options, 'local') && options.local === true) {
+    return findLocalConfig();
+  } else if (_.has(options, 'configPath') || _.has(options, 'config_path')) {
+    return options.configPath || options.config_path;
+  } else {
+    return findLocalConfig();
+  }
+};
+
+const fileExists = (filePath) => {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch (e) {
+    return false;
+  }
+};
+
+const config_exists = (options = {}) => {
+  return fileExists(pathFromOptions(options));
+};
 
 export default {
   siteByName,
+  sites,
   write,
   read,
-  sites,
-  configPathFromOptions
+  create,
+  pathFromOptions,
+  config_exists
 };
