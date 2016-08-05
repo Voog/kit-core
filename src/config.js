@@ -32,7 +32,7 @@ const sites = (options = {}) => {
 const write = (key, value, options = {}) => {
   let filePath = pathFromOptions(options);
 
-  if (!config_exists(filePath)) {
+  if (!configExists(filePath)) {
     create(options);
   }
 
@@ -48,7 +48,7 @@ const write = (key, value, options = {}) => {
 const read = (key, options = {}) => {
   let filePath = pathFromOptions(options);
 
-  if (filePath === LOCAL_CONFIG && !config_exists(options)) {
+  if (filePath === LOCAL_CONFIG && !configExists(options)) {
     filePath = GLOBAL_CONFIG;
   }
 
@@ -65,7 +65,7 @@ const read = (key, options = {}) => {
 const create = (options = {}) => {
   let filePath = pathFromOptions(options);
 
-  if (!config_exists(options)) {
+  if (!configExists(options)) {
     fs.writeFileSync(filePath, '{}');
     return true;
   } else {
@@ -93,7 +93,7 @@ const fileExists = (filePath) => {
   }
 };
 
-const config_exists = (options = {}) => {
+const configExists = (options = {}) => {
   return fileExists(pathFromOptions(options));
 };
 
@@ -104,5 +104,5 @@ export default {
   read,
   create,
   pathFromOptions,
-  config_exists
+  configExists
 };
