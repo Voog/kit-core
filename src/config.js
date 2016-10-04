@@ -48,8 +48,12 @@ const write = (key, value, options = {}) => {
 const read = (key, options = {}) => {
   let filePath = pathFromOptions(options);
 
-  if (filePath === LOCAL_CONFIG && !configExists(options)) {
-    filePath = GLOBAL_CONFIG;
+  if (!configExists(options)) {
+    if (filePath === LOCAL_CONFIG && configExists(Object.assign({}, options, {}))) {
+      filePath = GLOBAL_CONFIG;
+    } else {
+      throw new CustomError('Configuration file not found!');
+    }
   }
 
   let data = fs.readFileSync(filePath, 'utf8');

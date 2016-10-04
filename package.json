@@ -7,7 +7,7 @@
     "all": "npm run build && npm run test",
     "prebuild": "echo Rebuilding ./index.js",
     "build": "rollup -m inline -c",
-    "postbuild": "echo `echo Rebuilt ./index.js $(date +\"[%H:%M:%S]\")`",
+    "postbuild": "echo `echo Rebuilt ./index.js $(date +\"[%H:%M:%S]\")` && touch ../kit-cli/src/kit.js",
     "pretest": "echo Running tests",
     "test": "mocha ./test/test.js || true",
     "watch": "watch 'npm run all' ./src ./test",
