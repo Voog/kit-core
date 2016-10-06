@@ -219,51 +219,47 @@ const normalizePath = (path, siteDir) => {
 
 const writeFile = (siteName, file, destPath) => {
   return new Promise((resolve, reject) => {
-    if (file) {
-      if (_.includes(Object.keys(file), 'layout_name')) {
-        getLayoutContents(siteName, file.id).then(contents => {
-          try {
-            fs.mkdirSync(path.dirname(destPath));
-          } catch (e) {
-            if (e.code != 'EEXIST') { throw e; }
-          }
-
-          fs.writeFile(destPath, contents, (err) => {
-            if (err) { reject(err); }
-            resolve(file);
-          });
-        });
-      } else if (file.editable) {
-        getLayoutAssetContents(siteName, file.id).then(contents => {
-          try {
-            fs.mkdirSync(path.dirname(destPath));
-          } catch (e) {
-            if (e.code != 'EEXIST') { throw e; }
-          }
-          fs.writeFile(destPath, contents, (err) => {
-            if (err) { reject(err); }
-            resolve(file);
-          });
-        });
-      } else {
-        let url = file.public_url;
+    if (_.includes(Object.keys(file), 'layout_name')) {
+      getLayoutContents(siteName, file.id).then(contents => {
         try {
           fs.mkdirSync(path.dirname(destPath));
         } catch (e) {
           if (e.code != 'EEXIST') { throw e; }
         }
 
-        let stream = fs.createWriteStream(destPath);
-        if (url && stream) {
-          let req = request.get(url).on('error', (err) => reject(err));
-          req.pipe(stream);
+        fs.writeFile(destPath, contents, (err) => {
+          if (err) { reject(err); }
           resolve(file);
-        } else {
-          reject(null);
+        });
+      });
+    } else if (file.editable) {
+      getLayoutAssetContents(siteName, file.id).then(contents => {
+        try {
+          fs.mkdirSync(path.dirname(destPath));
+        } catch (e) {
+          if (e.code != 'EEXIST') { throw e; }
         }
-      }
+        fs.writeFile(destPath, contents, (err) => {
+          if (err) { reject(err); }
+          resolve(file);
+        });
+      });
     } else {
-      reject();
+      let url = file.public_url;
+      try {
+        fs.mkdirSync(path.dirname(destPath));
+      } catch (e) {
+        if (e.code != 'EEXIST') { throw e; }
+      }
+
+      let stream = fs.createWriteStream(destPath);
+      if (url && stream) {
+        let req = request.get(url).on('error', (err) => reject(err));
+        req.pipe(stream);
+        resolve(file);
+      } else {
+        reject(null);
+      }
     }
   });
 };
@@ -287,7 +283,7 @@ const uploadFile = (siteName, file, filePath, options = {}) => {
           (err ? reject : resolve)(data);
         });
       } else {
-        resolve(file);
+        resolve({failed: true, file: filePath, message: 'Unable to update file!'});
       }
     } else {
       createFile(siteName, filePath, options).then(resolve, reject);
@@ -303,11 +299,19 @@ const createFile = (siteName, filePath, options = {}) => {
 
     if (_.includes(['layout', 'component'], type)) {
       client.createLayout(file, (err, data) => {
-        (err ? reject : resolve)(data);
+        if (err) {
+          resolve({failed: true, file: file, message: 'Unable to create file!'})
+        } else {
+          resolve(data);
+        }
       });
     } else {
       client.createLayoutAsset(file, (err, data) => {
-        (err ? reject : resolve)(data);
+        if (err) {
+          resolve({failed: true, file: file, message: 'Unable to create file!'})
+        } else {
+          resolve(data);
+        }
       });
     }
   });
@@ -336,17 +340,15 @@ const fileObjectFromPath = (filePath, options = {}) => {
 
 const pullFile = (siteName, filePath, options = {}) => {
   let siteDir = sites.dirFor(siteName, options);
-
   let normalizedPath = normalizePath(filePath, siteDir);
 
   return new Promise((resolve, reject) => {
     findFile(normalizedPath, siteName, options).then(file => {
       if (!file || typeof file === 'undefined') {
-        reject();
-        return;
+        resolve({failed: true, file: filePath, message: 'File not found'});
+      } else {
+        resolve(writeFile(siteName, file, filePath, options));
       }
-
-      resolve(writeFile(siteName, file, filePath, options));
     });
   });
 };
@@ -356,14 +358,14 @@ const pushFile = (siteName, filePath, options = {}) => {
   let normalizedPath = normalizePath(filePath, siteDir);
 
   return new Promise((resolve, reject) => {
-    findFile(normalizedPath, siteName, options).then(
-      file => {
-        if (!file || typeof file === 'undefined') {
-          return reject(file);
-        }
+    findFile(normalizedPath, siteName, options).then(file => {
+      if (!file || typeof file === 'undefined') {
+        resolve({failed: true, file: filePath, message: 'File not found'});
+      } else {
         resolve(uploadFile(siteName, file, filePath, options));
       }
-    ).catch((err) => {console.log(err);resolve(uploadFile(siteName, undefined, filePath, options));});
+
+    });
   });
 };
 
@@ -386,20 +388,20 @@ const addFile = (siteName, fileName, options = {}) => {
 
     let relativePath = finalPath.replace(projectDir + '/', '');
 
-    if (fileUtils.fileExists(relativePath, options)) {
-      reject({file: fileName, message: 'File already exists!'});
-    } else if (typeof fileUtils.writeFile(relativePath, '') == 'undefined') {
-      createFile(siteName, relativePath, options).then(resolve);
+    if (fileUtils.fileExists(relativePath, options) || typeof fileUtils.writeFile(relativePath, '') == 'undefined') {
+      resolve(createFile(siteName, relativePath, options));
     } else {
-      reject({file: fileName, message: 'Unable to create file!'});
+      resolve({failed: true, file: fileName, message: 'Unable to create file!'});
     }
   });
 };
 
 const deleteFile = (siteName, fileName, options) => {
   let client = clientFor(siteName, options);
+
   return new Promise((resolve, reject) => {
     let type = getTypeFromRelativePath(fileName);
+
     findFile(fileName, siteName, options).then(file => {
       if (_.includes(['layout', 'component'], type)) {
         client.deleteLayout(file.id, (err, data) => {
@@ -433,12 +435,10 @@ const removeFile = (siteName, fileName, options = {}) => {
 
     let relativePath = finalPath.replace(projectDir + '/', '');
 
-    if (fileUtils.fileExists(finalPath, options)) {
-      if (typeof fileUtils.deleteFile(relativePath) == 'undefined') {
-        deleteFile(siteName, relativePath, options).then(resolve);
-      } else {
-        reject({file: fileName, message: 'Unable to remove file!'});
-      }
+    if (fileUtils.fileExists(finalPath, options) || typeof fileUtils.deleteFile(relativePath) == 'undefined') {
+      resolve(deleteFile(siteName, relativePath, options));
+    } else {
+      resolve({failed: true, file: fileName, message: 'Unable to remove file!'});
     }
   });
 };
