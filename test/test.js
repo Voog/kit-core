@@ -15,7 +15,7 @@ var fs = require('fs');
 
 var Voog = require('voog');
 
-var HOMEDIR = process.env.HOME;
+var HOMEDIR = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 var LOCALDIR = process.cwd();
 var CONFIG_FILENAME = '.voog';
 var LOCAL_CONFIG_PATH = path.join(LOCALDIR, CONFIG_FILENAME);

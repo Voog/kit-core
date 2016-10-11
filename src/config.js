@@ -7,7 +7,7 @@ import CustomError from './custom_error';
 
 const CONFIG_FILENAME = '.voog';
 
-const HOMEDIR = process.env.HOME;
+const HOMEDIR = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 const LOCALDIR = process.cwd();
 
 const LOCAL_CONFIG = path.join(LOCALDIR, CONFIG_FILENAME);
