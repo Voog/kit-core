@@ -23,7 +23,7 @@ const getTotalFileCount = (name, options = {}) => {
   return new Promise((resolve, reject) => {
     Promise.all([getLayouts(name, options), getLayoutAssets(name, options)]).then(([layouts, assets]) => {
       resolve(layouts.length + assets.length);
-    });
+    }).catch(reject);
   });
 };
 
@@ -86,6 +86,86 @@ const pullAllFiles = (siteName, options = {}) => {
           return pullFile(siteName, filePath, options);
         }))
       ]).then(resolve);
+    }).catch(reject);
+  });
+};
+
+const getFolderContents = (siteName, folder, options = {}) => {
+  return new Promise((resolve, reject) => {
+    switch (folder) {
+    case 'layouts':
+      getLayouts(siteName, options).then(layouts => resolve(layouts.filter(l => !l.component))).catch(reject);
+      break;
+    case 'components':
+      getLayouts(siteName, options).then(layouts => resolve(layouts.filter(l => l.component))).catch(reject);
+      break;
+    case 'assets':
+      getLayoutAssets(siteName, options).then(assets => resolve(assets.filter(a => !_.includes(['stylesheet', 'image', 'javascript'], a.asset_type)))).catch(reject);
+      break;
+    case 'images':
+      getLayoutAssets(siteName, options).then(assets => resolve(assets.filter(a => a.asset_type === 'image'))).catch(reject);
+      break;
+    case 'javascripts':
+      getLayoutAssets(siteName, options).then(assets => resolve(assets.filter(a => a.asset_type === 'javascript'))).catch(reject);
+      break;
+    case 'stylesheets':
+      getLayoutAssets(siteName, options).then(assets => resolve(assets.filter(a => a.asset_type === 'stylesheet'))).catch(reject);
+      break;
+    default:
+      resolve([]);
+    }
+  });
+};
+
+const getFileTypeForFolder = (folder) => {
+  return {
+    'layouts': 'layout',
+    'components': 'layout',
+    'assets': 'asset',
+    'images': 'asset',
+    'javascripts': 'asset',
+    'stylesheets': 'asset'
+  }[folder];
+};
+
+const pullFolder = (siteName, folder, options = {}) => {
+  return new Promise((resolve, reject) => {
+    let siteDir = sites.dirFor(siteName, options);
+    let fileType = getFileTypeForFolder(folder);
+
+    Promise.all(getFolderContents(siteName, folder, options)).then(files => {
+      Promise.map(files, f => {
+        let filePath;
+        if (fileType === 'layout') {
+          filePath = path.join(siteDir, `${f.component ? 'components' : 'layouts'}/${normalizeTitle(f.title)}.tpl`);
+        } else if (fileType === 'asset') {
+          filePath = path.join(siteDir, `${_.includes(['stylesheet', 'image', 'javascript'], f.asset_type) ? f.asset_type : 'asset'}s/${f.filename}`);
+        }
+        if (filePath) {
+          return pullFile(siteName, filePath, options);
+        }
+      }).then(resolve);
+    }).catch(reject);
+  });
+};
+
+const pushFolder = (siteName, folder, options = {}) => {
+  return new Promise((resolve, reject) => {
+    let siteDir = sites.dirFor(siteName, options);
+    let fileType = getFileTypeForFolder(folder);
+
+    Promise.all(getFolderContents(siteName, folder, options)).then(files => {
+      Promise.map(files, f => {
+        let filePath;
+        if (fileType === 'layout') {
+          filePath = path.join(siteDir, `${f.component ? 'components' : 'layouts'}/${normalizeTitle(f.title)}.tpl`);
+        } else if (fileType === 'asset') {
+          filePath = path.join(siteDir, `${_.includes(['stylesheet', 'image', 'javascript'], f.asset_type) ? f.asset_type : 'asset'}s/${f.filename}`);
+        }
+        if (filePath) {
+          return pushFile(siteName, filePath, options);
+        }
+      }).then(resolve);
     }).catch(reject);
   });
 };
@@ -451,6 +531,8 @@ export default {
   findFile,
   pushFile,
   pullFile,
+  pullFolder,
+  pushFolder,
   createFile,
   addFile,
   removeFile
