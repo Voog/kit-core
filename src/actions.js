@@ -12,9 +12,10 @@ import {Promise} from 'bluebird';
 const clientFor = (name, options = {}) => {
   let host = sites.hostFor(name, options);
   let token = sites.tokenFor(name, options);
+  let protocol = options.protocol;
 
   if (host && token) {
-    return new Voog(host, token);
+    return new Voog(host, token, protocol);
   }
 };
 
@@ -22,7 +23,7 @@ const getTotalFileCount = (name, options = {}) => {
   return new Promise((resolve, reject) => {
     Promise.all([getLayouts(name, options), getLayoutAssets(name, options)]).then(([layouts, assets]) => {
       resolve(layouts.length + assets.length);
-    }).catch(reject);
+    });
   });
 };
 
@@ -118,8 +119,8 @@ const findLayoutOrComponent = (fileName, component, siteName, options = {}) => {
       'q.layout.component': component || false
     }, (err, data = []) => {
       if (err) { reject(err); }
-      let ret = data.filter(l => normalizeTitle(l.title) == name);
-      if (ret.length === 0) { reject(undefined); }
+      let ret = data.filter(l => normalizeTitle(l.title).toLowerCase() == name.toLowerCase());
+      if (ret.length === 0) { resolve(undefined); }
       resolve(_.head(ret));
     });
   });
@@ -142,7 +143,7 @@ const getFileNameFromPath = (filePath) => {
 };
 
 const getLayoutNameFromFilename = (fileName) => {
-  return _.head(fileName.split('.'));
+  return _.head(fileName.split('.tpl'));
 };
 
 const findFile = (filePath, siteName, options = {}) => {
@@ -217,10 +218,10 @@ const normalizePath = (path, siteDir) => {
     .replace(/^\//, '');
 };
 
-const writeFile = (siteName, file, destPath) => {
+const writeFile = (siteName, file, destPath, options = {}) => {
   return new Promise((resolve, reject) => {
     if (_.includes(Object.keys(file), 'layout_name')) {
-      getLayoutContents(siteName, file.id).then(contents => {
+      getLayoutContents(siteName, file.id, options).then(contents => {
         try {
           fs.mkdirSync(path.dirname(destPath));
         } catch (e) {
@@ -233,7 +234,7 @@ const writeFile = (siteName, file, destPath) => {
         });
       });
     } else if (file.editable) {
-      getLayoutAssetContents(siteName, file.id).then(contents => {
+      getLayoutAssetContents(siteName, file.id, options).then(contents => {
         try {
           fs.mkdirSync(path.dirname(destPath));
         } catch (e) {
@@ -300,7 +301,7 @@ const createFile = (siteName, filePath, options = {}) => {
     if (_.includes(['layout', 'component'], type)) {
       client.createLayout(file, (err, data) => {
         if (err) {
-          resolve({failed: true, file: file, message: 'Unable to create file!'})
+          resolve({failed: true, file: file, message: 'Unable to create file!'});
         } else {
           resolve(data);
         }
@@ -308,7 +309,7 @@ const createFile = (siteName, filePath, options = {}) => {
     } else {
       client.createLayoutAsset(file, (err, data) => {
         if (err) {
-          resolve({failed: true, file: file, message: 'Unable to create file!'})
+          resolve({failed: true, file: file, message: 'Unable to create file!'});
         } else {
           resolve(data);
         }
@@ -364,7 +365,6 @@ const pushFile = (siteName, filePath, options = {}) => {
       } else {
         resolve(uploadFile(siteName, file, filePath, options));
       }
-
     });
   });
 };

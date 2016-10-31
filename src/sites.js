@@ -16,7 +16,15 @@ const byName = (name, options = {}) => {
 const add = (data, options = {}) => {
   if (_.has(data, 'host') && _.has(data, 'token')) {
     let sites = config.sites(options);
-    sites.push(data);
+
+    // updates config if extra options are provided and given site already exists
+    var matchSite = site => site.host === data.host || site.name === data.name;
+    if (sites.filter(matchSite).length > 0) {
+      var idx = _.findIndex(sites, matchSite);
+      sites[idx] = Object.assign({}, sites[idx], data); // merge old and new values
+    } else {
+      sites = [data].concat(sites); // otherwise add new site to config
+    }
     config.write('sites', sites, options);
     return true;
   } else {
@@ -88,7 +96,7 @@ const filesFor = (name) => {
 };
 
 const dirFor = (name, options = {}) => {
-  let site = byName(name, options);;
+  let site = byName(name, options);
   if (options.dir || options.path) {
     return options.dir || options.path;
   } else if (site) {
@@ -96,15 +104,34 @@ const dirFor = (name, options = {}) => {
   }
 };
 
+/**
+ * Returns the hostname that matches the given name in the configuration
+ * Prefers explicit options over the configuration file values
+ * @param  {string} name         Site name in the configuration
+ * @param  {Object} [options={}] Object with values that override default configuration values
+ * @return {string?}             The final hostname for the given name
+ */
 const hostFor = (name, options = {}) => {
   let site = byName(name, options);
+  let host;
   if (options.host) {
-    return options.host;
+    host = options.host;
   } else if (site) {
-    return site.host;
+    host = site.host;
+  }
+  if (host) {
+    return (options.protocol ? `${options.protocol}://` : '') + host.replace(/^https?:\/\//, '');
+  } else {
+    return;
   }
 };
 
+/**
+ * Returns the API token for the given site name
+ * @param  {string} name         Site name in the configuration
+ * @param  {Object} [options={}] Object with values that override default configuration values
+ * @return {string?}             The API token for the given site
+ */
 const tokenFor = (name, options = {}) => {
   let site = byName(name, options);
   if (options.token || options.api_token) {

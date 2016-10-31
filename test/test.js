@@ -13,23 +13,19 @@ var path = require('path');
 
 var fs = require('fs');
 
-var Voog = require('voog');
-
-var HOMEDIR = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 var LOCALDIR = process.cwd();
 var CONFIG_FILENAME = '.voog';
 var LOCAL_CONFIG_PATH = path.join(LOCALDIR, CONFIG_FILENAME);
-var GLOBAL_CONFIG_PATH = path.join(HOMEDIR, CONFIG_FILENAME);
 var TEST_CONFIG_PATH = path.join(LOCALDIR, 'test', CONFIG_FILENAME);
-var INVALID_PATH = 'INVALID';
 
 var TEST_CONFIG_CONTENTS = '{\n  "sites": [{\n    "host": "testhost.voog.com",\n    "token": "SECRET",\n    "name": "test"\n  }]\n}';
 
 var options = {config_path: TEST_CONFIG_PATH};
 var explicitOptions = Object.assign({}, options, {
-  host: 'explicit.voog.com',
+  host: 'http://explicit.voog.com',
   token: 'EXPLICIT',
-  path: 'explicit/path'
+  path: 'explicit/path',
+  protocol: 'https'
 });
 
 describe('Kit.actions', function() {
@@ -42,6 +38,7 @@ describe('Kit.actions', function() {
         expect(typeof client.host).to.not.be.undefined;
         expect(typeof client.api_token).to.not.be.undefined;
         expect(client.host).to.be.eq('testhost.voog.com');
+        expect(client.protocol).to.be.eq('http:');
         expect(client.api_token).to.be.eq('SECRET');
       });
     });
@@ -53,7 +50,8 @@ describe('Kit.actions', function() {
         expect(client).to.be.a('object');
         expect(typeof client.host).to.not.be.undefined;
         expect(typeof client.api_token).to.not.be.undefined;
-        expect(client.host).to.be.eq(explicitOptions.host);
+        expect(client.host).to.be.eq('explicit.voog.com');
+        expect(client.protocol).to.be.eq('https:');
         expect(client.api_token).to.be.eq(explicitOptions.token);
       });
     });
@@ -64,7 +62,8 @@ describe('Kit.actions', function() {
       it('resolves to a file object', function() {
         var error, value;
         nock.disableNetConnect();
-        var mockAPI = nock('http://testhost.voog.com')
+
+        nock('http://testhost.voog.com')
           .get('/admin/api/layouts')
           .query({'q.layout.component': true, per_page: 250})
           .reply(200, [{title: 'test'}]);
@@ -80,10 +79,10 @@ describe('Kit.actions', function() {
     });
 
     context('with an invalid file', function() {
-      it('rejects with undefined', function() {
+      it('resolves with undefined', function() {
         var error, value;
         nock.disableNetConnect();
-        var mockAPI = nock('http://testhost.voog.com')
+        nock('http://testhost.voog.com')
           .get('/admin/api/layouts')
           .query({'q.layout.component': false, per_page: 250})
           .reply(200, [{title: 'test'}]);
@@ -95,7 +94,7 @@ describe('Kit.actions', function() {
         }
 
         expect(error).to.be.undefined;
-        return expect(value).to.be.rejectedWith(undefined);
+        return expect(value).to.become(undefined);
       });
     });
   });
@@ -104,8 +103,7 @@ describe('Kit.actions', function() {
 describe('Kit.config', function() {
   context('#siteByName', function() {
     it('returns a site object that matches the given name', function() {
-      var error;
-      var value;
+      var value, error;
 
       var readStub = sinon
         .stub(fs, 'readFileSync')
@@ -117,6 +115,7 @@ describe('Kit.config', function() {
         error = e;
       }
 
+      expect(error).to.be.undefined;
       expect(value).to.be.an('object');
       expect(Object.keys(value).length).to.be.eq(3);
 
@@ -124,8 +123,7 @@ describe('Kit.config', function() {
     });
 
     it('returns nothing if the name does not match', function() {
-      var error;
-      var value;
+      var error, value;
 
       var readStub = sinon
         .stub(fs, 'readFileSync')
@@ -138,6 +136,7 @@ describe('Kit.config', function() {
       }
 
       expect(value).to.be.undefined;
+      expect(error).to.be.undefined;
 
       readStub.restore();
     });
@@ -168,16 +167,16 @@ describe('Kit.config', function() {
       expect(site.token).to.be.a('string');
       expect(site.token).to.be.eq('SECRET');
       expect(site.name).to.be.a('string');
-      expect(site.name).to.be.eq('test')
+      expect(site.name).to.be.eq('test');
 
       readStub.restore();
-    })
+    });
   });
 
   context('#write', function() {
     it('writes the given key and value to the config', function() {
-      var error;
-      var value;
+      var error, value;
+
       var statStub = sinon
         .stub(fs, 'statSync')
         .returns({
@@ -199,6 +198,7 @@ describe('Kit.config', function() {
         error = e;
       }
 
+      expect(value).to.be.true;
       expect(error).to.be.undefined;
       expect(writeStub.args[0][0]).to.be.eq(TEST_CONFIG_PATH);
 
@@ -244,6 +244,8 @@ describe('Kit.config', function() {
     });
 
     it('returns nothing if the given key is not in the config', function() {
+      var error, value;
+
       var readStub = sinon
         .stub(fs, 'readFileSync')
         .returns(TEST_CONFIG_CONTENTS);
@@ -255,6 +257,7 @@ describe('Kit.config', function() {
       }
 
       expect(value).to.be.undefined;
+      expect(error).to.be.undefined;
 
       readStub.restore();
     });
@@ -263,8 +266,7 @@ describe('Kit.config', function() {
   context('#create', function() {
     context ('when given a file path', function() {
       it('doesn\'t create a file if it already exists', function() {
-        var value;
-        var error;
+        var value, error;
 
         var writeStub = sinon
           .stub(fs, 'writeFileSync');
@@ -278,13 +280,14 @@ describe('Kit.config', function() {
           });
 
         try {
-          value = Kit.config.create({config_path: 'invalid/path/'})
+          value = Kit.config.create({config_path: 'invalid/path/'});
         } catch (e) {
           error = e;
         } finally {
           expect(statStub.args[0][0]).to.eq('invalid/path/');
           expect(writeStub.called).to.be.false;
           expect(value).to.be.false;
+          expect(error).to.be.undefined;
 
           writeStub.restore();
           statStub.restore();
@@ -292,8 +295,7 @@ describe('Kit.config', function() {
       });
 
       it('creates a new file in the given location', function() {
-        var value;
-        var error;
+        var value, error;
 
         var writeStub = sinon
           .stub(fs, 'writeFileSync');
@@ -307,7 +309,7 @@ describe('Kit.config', function() {
           });
 
         try {
-          value = Kit.config.create({config_path: 'valid/path/'})
+          value = Kit.config.create({config_path: 'valid/path/'});
         } catch (e) {
           error = e;
         } finally {
@@ -315,6 +317,7 @@ describe('Kit.config', function() {
           expect(writeStub.called).to.be.true;
           expect(writeStub.calledWith('valid/path/', '{}')).to.be.true;
           expect(value).to.be.true;
+          expect(error).to.be.undefined;
 
           writeStub.restore();
           statStub.restore();
@@ -374,20 +377,20 @@ describe('Kit.sites', function() {
   context('#add', function() {
     context('with valid data', function() {
       it('writes a site object to the configuration file', function() {
-        var error;
-        var value;
+        var error, value;
 
         var writeStub = sinon.stub(Kit.config, 'write');
 
         var data = {host: 'new.voog.com', token: 'newsecret'};
 
         try {
-          value = Kit.sites.add(data, options)
+          value = Kit.sites.add(data, options);
         } catch (e) {
           error = e;
         }
 
         expect(value).to.be.true;
+        expect(error).to.be.undefined;
         expect(writeStub.called).to.be.true;
 
         writeStub.restore();
@@ -396,20 +399,20 @@ describe('Kit.sites', function() {
 
     context('with invalid data', function() {
       it('does not modify the configuration file', function() {
-        var error;
-        var value;
+        var error, value;
 
         var writeStub = sinon.stub(Kit.config, 'write');
 
         var data = {token: 'newsecret'};
 
         try {
-          value = Kit.sites.add(data, options)
+          value = Kit.sites.add(data, options);
         } catch (e) {
           error = e;
         }
 
         expect(value).to.be.false;
+        expect(error).to.be.undefined;
         expect(writeStub.called).to.be.false;
 
         writeStub.restore();
@@ -420,15 +423,14 @@ describe('Kit.sites', function() {
   context('#remove', function() {
     context('with valid data', function() {
       it('removes the site with the given name from the configuration file', function() {
-        var error;
-        var value;
+        var error, value;
 
         var writeStub = sinon.stub(fs, 'writeFileSync');
 
         var name = 'test';
 
         try {
-          value = Kit.sites.remove(name, options)
+          value = Kit.sites.remove(name, options);
         } catch (e) {
           error = e;
         }
@@ -446,20 +448,20 @@ describe('Kit.sites', function() {
 
     context('with invalid data', function() {
       it('does not modify the configuration file', function() {
-        var error;
-        var value;
+        var error, value;
 
         var writeStub = sinon.stub(fs, 'writeFileSync');
 
         var name = undefined;
 
         try {
-          value = Kit.sites.remove(name, options)
+          value = Kit.sites.remove(name, options);
         } catch (e) {
           error = e;
         }
 
         expect(value).to.be.false;
+        expect(error).to.be.undefined;
         expect(writeStub.called).to.be.false;
 
         writeStub.restore();
@@ -500,7 +502,6 @@ describe('Kit.sites', function() {
     context('with an invalid file path', function() {
       it('does not return anything', function() {
         var value;
-        var error;
 
         var statStub = sinon.stub(fs, 'statSync').returns({
           isFile: function() { return false; }
@@ -512,7 +513,7 @@ describe('Kit.sites', function() {
 
         statStub.restore();
       });
-    })
+    });
   });
 
   context('#dirFor', function() {
@@ -536,7 +537,7 @@ describe('Kit.sites', function() {
 
         stub.restore();
       });
-    })
+    });
 
     context('when the path is given in the options', function() {
       it('should prefer the explicit path', function() {
@@ -557,7 +558,13 @@ describe('Kit.sites', function() {
     it('prefers the host passed in the options object', function() {
       var value = Kit.sites.hostFor('test', explicitOptions);
 
-      expect(value).to.be.eq('explicit.voog.com');
+      expect(value).to.be.eq('https://explicit.voog.com');
+    });
+
+    it('prefers the protocol passed in the options object', function() {
+      var value = Kit.sites.hostFor('test', explicitOptions);
+
+      expect(value).to.be.eq('https://explicit.voog.com');
     });
   });
 
