@@ -363,11 +363,17 @@ const uploadFile = (siteName, file, filePath, options = {}) => {
         }, (err, data) => {
           (err ? reject : resolve)(data);
         });
+      } else if (options.overwrite) {
+        let siteDir = sites.dirFor(siteName, options);
+        var fileName = normalizePath(filePath, siteDir);
+        deleteFile(siteName, fileName, options).then(() => {
+          createFile(siteName, fileName, options).then(resolve).catch(reject);
+        });
       } else {
         resolve({failed: true, file: filePath, message: 'Unable to update file!'});
       }
     } else {
-      createFile(siteName, filePath, options).then(resolve, reject);
+      createFile(siteName, filePath, options).then(resolve).catch(reject);
     }
   });
 };
@@ -412,10 +418,16 @@ const fileObjectFromPath = (filePath, options = {}) => {
       parent_title: _.has(options, 'parent_title') ? options.parent_title : null
     };
   } else {
-    return {
-      filename: fileName,
-      data: fs.readFileSync(filePath, 'utf8')
+    let obj = {
+      filename: fileName
     };
+
+    if (_.includes(['javascripts', 'stylesheets'], type)) {
+      obj.data = fs.readFileSync(filePath, 'utf8');
+    } else {
+      obj.file = fs.createReadStream(filePath);
+    }
+    return obj;
   }
 };
 
