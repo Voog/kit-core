@@ -22,7 +22,10 @@ const findLocalConfig = () => {
 };
 
 const siteByName = (name, options = {}) => {
-  return sites(options).filter(p => p.name === name || p.host === name)[0];
+  return _.head(
+    sites(options)
+    .filter(p => p.name === name || p.host === name)
+  );
 };
 
 const sites = (options = {}) => {
@@ -43,6 +46,17 @@ const write = (key, value, options = {}) => {
 
   fs.writeFileSync(filePath, fileContents);
   return true;
+};
+
+const updateSite = (name, updates = {}, options = {}) => {
+  let site = siteByName(name, options);
+  if (!site) { return false; }
+
+  let currentSites = sites(options);
+  let idx = _.findIndex(currentSites, (s) => s.name === site.name || s.host === site.host);
+  currentSites[idx] = Object.assign({}, site, updates);
+
+  write('sites', currentSites, options);
 };
 
 const read = (key, options = {}) => {
@@ -105,6 +119,7 @@ export default {
   siteByName,
   sites,
   write,
+  updateSite,
   read,
   create,
   pathFromOptions,
