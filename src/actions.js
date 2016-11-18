@@ -171,7 +171,6 @@ const pushFolder = (siteName, folder, options = {}) => {
 };
 
 const pushAllFiles = (siteName, options = {}) => {
-  console.log('pushAllFiles', options);
   return new Promise((resolve, reject) => {
     let siteDir = sites.dirFor(siteName, options);
 
