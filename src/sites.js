@@ -61,17 +61,17 @@ const getFileInfo = (filePath) => {
   }
 };
 
-const totalFilesFor = (siteName) => {
-  let files = filesFor(siteName);
+const totalFilesFor = (siteName, options = {}) => {
+  let files = filesFor(siteName, options);
   return Object.keys(files).reduce((total, folder) => total + files[folder].length, 0);
 };
 
-const filesFor = (name) => {
+const filesFor = (name, options = {}) => {
   let folders = [
     'assets', 'components', 'images', 'javascripts', 'layouts', 'stylesheets'
   ];
 
-  let workingDir = dirFor(name);
+  let workingDir = dirFor(name, options);
 
   let root = fileUtils.listFolders(workingDir);
 

@@ -35,7 +35,7 @@ const sites = (options = {}) => {
 const write = (key, value, options = {}) => {
   let filePath = pathFromOptions(options);
 
-  if (!configExists(filePath)) {
+  if (!configExists(options)) {
     create(options);
   }
 
@@ -63,7 +63,7 @@ const read = (key, options = {}) => {
   let filePath = pathFromOptions(options);
 
   if (!configExists(options)) {
-    if (filePath === LOCAL_CONFIG && configExists(Object.assign({}, options, {}))) {
+    if (filePath === LOCAL_CONFIG && configExists(Object.assign({}, options, {configPath: filePath}))) {
       filePath = GLOBAL_CONFIG;
     } else {
       throw new CustomError('Configuration file not found!');
