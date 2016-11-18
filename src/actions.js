@@ -496,12 +496,12 @@ const deleteFile = (siteName, fileName, options) => {
 
     findFile(fileName, siteName, options).then(file => {
       if (_.includes(['layout', 'component'], type)) {
-        client.deleteLayout(file.id, (err, data) => {
-          (err ? reject : resolve)(data);
+        client.deleteLayout(file.id, (err) => {
+          if (err) { reject(err); } else { resolve(file); }
         });
       } else {
-        client.deleteLayoutAsset(file.id, (err, data) => {
-          (err ? reject : resolve)(data);
+        client.deleteLayoutAsset(file.id, (err) => {
+          if (err) { reject(err); } else { resolve(file); }
         });
       }
     });
@@ -527,7 +527,7 @@ const removeFile = (siteName, fileName, options = {}) => {
 
     let relativePath = finalPath.replace(projectDir + '/', '');
 
-    if (fileUtils.fileExists(finalPath, options) || typeof fileUtils.deleteFile(relativePath) == 'undefined') {
+    if (fileUtils.fileExists(finalPath, options) && typeof fileUtils.deleteFile(relativePath) == 'undefined') {
       resolve(deleteFile(siteName, relativePath, options));
     } else {
       resolve({failed: true, file: fileName, message: 'Unable to remove file!'});
